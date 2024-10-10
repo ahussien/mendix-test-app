@@ -1,0 +1,84 @@
+stages:
+  - clean
+  - verify
+  - prepare
+  - checkout
+  - docker
+
+variables:
+  MENDIX_BUILDPACK_DIR: "${CI_PROJECT_DIR}/myMendixApp"
+  MENDIX_PROJECT_DIR: "${CI_PROJECT_DIR}/myMendixApp/app"
+  DOCKER_IMAGE_NAME: "amorgomaa/mendix-projects"
+  MENDIX_PROJECT_REPO: "https://github.com/amr-egypt2008/mendix-test-app.git"
+  MENDIX_BUILDPACK_REPO: "https://github.com/amr-egypt2008/mendix-buildpack.git"
+  GITHUB_USERNAME: "xxxxxxx"
+  GITHUB_PASSWORD: "xxxxxxx"
+  DOCKER_USERNAME: "xxxxxxx"
+  DOCKER_PASSWORD: "xxxxxxx"
+
+clean_workspace:
+  stage: clean
+  script:
+    - rm -rf ${CI_PROJECT_DIR}/*
+  
+verify_workspace:
+  stage: verify
+  script:
+    - echo "Listing workspace contents"
+    - ls -la ${CI_PROJECT_DIR}
+
+set_permissions:
+  stage: verify
+  script:
+    - chmod -R 755 ${CI_PROJECT_DIR}
+
+ensure_buildpack_directory:
+  stage: prepare
+  script:
+    - if [ ! -d "${MENDIX_BUILDPACK_DIR}" ]; then
+        echo "Project directory ${MENDIX_BUILDPACK_DIR} does not exist. Creating it now.";
+        mkdir -p ${MENDIX_BUILDPACK_DIR};
+      else
+        echo "Project directory ${MENDIX_BUILDPACK_DIR} already exists.";
+        ls -la ${MENDIX_BUILDPACK_DIR};
+      fi
+
+ensure_mendix_directory:
+  stage: prepare
+  script:
+    - if [ ! -d "${MENDIX_PROJECT_DIR}" ]; then
+        echo "Project directory ${MENDIX_PROJECT_DIR} does not exist. Creating it now.";
+        mkdir -p ${MENDIX_PROJECT_DIR};
+      else
+        echo "Project directory ${MENDIX_PROJECT_DIR} already exists.";
+        ls -la ${MENDIX_PROJECT_DIR};
+      fi
+
+checkout_buildpack_repo:
+  stage: checkout
+  script:
+    - git clone https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@${MENDIX_BUILDPACK_REPO} ${MENDIX_BUILDPACK_DIR}
+
+checkout_project_repo:
+  stage: checkout
+  script:
+    - git clone https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@${MENDIX_PROJECT_REPO} ${MENDIX_PROJECT_DIR}
+
+verify_docker_installation:
+  stage: docker
+  script:
+    - docker --version
+
+build_mendix_app_docker_image:
+  stage: docker
+  script:
+    - |
+      cd ${MENDIX_BUILDPACK_DIR}
+      docker build --build-arg BUILD_PATH="./app" -t ${DOCKER_IMAGE_NAME}:${CI_PIPELINE_ID} .
+
+# Uncomment this section to push the image to DockerHub
+# push_mendix_app_docker_image:
+#   stage: docker
+#   script:
+#     - echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+#     - docker push ${DOCKER_IMAGE_NAME}:${CI_PIPELINE_ID}
