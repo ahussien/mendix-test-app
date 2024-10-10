@@ -1,0 +1,188 @@
+pipeline {
+    agent any
+
+    environment {
+      
+        MENDIX_BUILDPACK_DIR = "${WORKSPACE}/myMendixApp"
+        MENDIX_PROJECT_DIR = "${WORKSPACE}/myMendixApp/app"
+      
+        DOCKER_IMAGE_NAME = "amorgomaa/mendix-projects"
+       
+        MENDIX_PROJECT_REPO='https://github.com/amr-egypt2008/mendix-test-app.git'
+        MENDIX_BUILDPACK_REPO='https://github.com/amr-egypt2008/mendix-buildpack.git'
+        // Plain text credentials (NOT RECOMMENDED for security reasons)
+        
+        GITHUB_USERNAME = 'xxxxxxx'
+        GITHUB_PASSWORD = 'xxxxxxx'
+        DOCKER_USERNAME = 'xxxxxxx'
+        DOCKER_PASSWORD = 'xxxxxxx'
+    }
+
+    stages {
+        // ... (previous stages remain unchanged)
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Verify Workspace') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh "ls -la ${WORKSPACE}"
+                    } else {
+                        bat "dir ${WORKSPACE}"
+                    }
+                }
+            }
+        }
+
+        stage('Set Permissions') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh "chmod -R 755 ${WORKSPACE}"
+                    } else {
+                        bat "icacls ${WORKSPACE} /grant Everyone:(OI)(CI)F /T"
+                    }
+                }
+            }
+        }
+
+        stage('Workspace Info') {
+            steps {
+                script {
+                    echo "Workspace: ${WORKSPACE}"
+                    echo "Job Name: ${env.JOB_NAME}"
+                    echo "Build Number: ${env.BUILD_NUMBER}"
+                }
+            }
+        }
+
+        // Esnure that Build pack directory is existing ( Main Folder==> myMendixApp)
+        stage('Ensure main Build Pack Directory Exists') {
+            steps {
+                script {
+                    if (!fileExists("${MENDIX_BUILDPACK_DIR}")) {
+                        echo "Project directory ${MENDIX_BUILDPACK_DIR} does not exist. Creating it now."
+                        if (isUnix()) {
+                            sh "mkdir -p ${MENDIX_BUILDPACK_DIR}"
+                        } else {
+                            bat "mkdir \"${MENDIX_BUILDPACK_DIR}\""
+                        }
+                    } else {
+                        echo "Project directory ${MENDIX_BUILDPACK_DIR} already exists."
+                        // Print contents of the directory for debugging
+                        if (isUnix()) {
+                            sh "ls -la ${MENDIX_BUILDPACK_DIR}"
+                        } else {
+                            bat "dir ${MENDIX_BUILDPACK_DIR}"
+                        }
+                    }
+                }
+            }
+        }
+         // Ensure the Mendix App Directory Exists ( Sub Folder==> myMendixApp-->App)
+        stage('Ensure the Mendix App Directory Exists') {
+            steps {
+                script {
+                    if (!fileExists("${MENDIX_PROJECT_DIR}")) {
+                        echo "Project directory ${MENDIX_PROJECT_DIR} does not exist. Creating it now."
+                        if (isUnix()) {
+                            sh "mkdir -p ${MENDIX_PROJECT_DIR}"
+                        } else {
+                            bat "mkdir \"${MENDIX_PROJECT_DIR}\""
+                        }
+                    } else {
+                        echo "Project directory ${MENDIX_PROJECT_DIR} already exists."
+                        // Print contents of the directory for debugging
+                        if (isUnix()) {
+                            sh "ls -la ${MENDIX_PROJECT_DIR}"
+                        } else {
+                            bat "dir ${MENDIX_PROJECT_DIR}"
+                        }
+                    }
+                }
+            }
+        }
+       stage('Checkout the Mendix build-pack repository') {
+            steps {
+                dir("${MENDIX_BUILDPACK_DIR}") {
+                    // Using plain text GitHub credentials
+                    git "${MENDIX_BUILDPACK_REPO}"
+                       //credentialsId: [username: env.GITHUB_USERNAME, password: env.GITHUB_PASSWORD]
+                }
+            }
+       }
+      
+       stage('Checkout the Mendix application repository') {
+            steps {
+                dir("${MENDIX_PROJECT_DIR}") {
+                    // Using plain text GitHub credentials
+                    git "${MENDIX_PROJECT_REPO}"
+                      //  credentialsId: [username: env.GITHUB_USERNAME, password: env.GITHUB_PASSWORD]
+                }
+            }
+        }
+        stage('Verify Docker Installation') {
+    steps {
+        script {
+            if (isUnix()) {
+                sh 'docker --version'
+            } else {
+                bat 'docker --version'
+            }
+            }
+           }
+          }
+          stage('Build Mendix App Docker Image based on BuildPack') {
+            steps {
+                script {
+                   
+                    def buildNumber = env.BUILD_NUMBER
+                    dir("${MENDIX_BUILDPACK_DIR}") {
+                        if (isUnix()) {
+                            sh """
+                                docker build --build-arg BUILD_PATH="./app" -t ${DOCKER_IMAGE_NAME}:${buildNumber} .
+                            """
+                        } else {
+                            bat """
+                                docker build --build-arg BUILD_PATH="./app" -t ${DOCKER_IMAGE_NAME}:${buildNumber} .
+                            """
+                        }
+                    }
+                }
+            }
+        }
+       
+       //      stage('Push mendix App Docker Image to DockerHub') {
+        //    steps {
+       //         script {
+       //             def buildNumber = env.BUILD_NUMBER
+       //              dir("${MENDIX_PROJECT_DIR}") {
+                    //withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                       // Docker login and push to Docker Hub using plain text credentials
+        //                sh "docker login -u ${env.DOCKER_USERNAME} -p ${env.DOCKER_PASSWORD}"
+                        
+        //                if (isUnix()) {
+        //                    sh """
+        //                        echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+        //                        docker push ${DOCKER_IMAGE_NAME}:${buildNumber}
+        //                    """
+        //                } else {
+        //                    bat """
+        //                        echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin
+         //                       docker push ${DOCKER_IMAGE_NAME}:${buildNumber}
+         //               """
+         //               }
+         //           }
+         //       }
+         //       }
+         //  }
+        
+        
+     
+    }
+}
